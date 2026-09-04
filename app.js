@@ -77,6 +77,23 @@ function formatDateTime(iso) {
   return `${datePart} · ${timePart}`;
 }
 
+// URL을 자동으로 <a> 링크로 변환 (나머지 텍스트는 이스케이프 처리)
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function linkify(text) {
+  const escaped = escapeHtml(text);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+  });
+}
+
 // ---------- 터치 시에만 수정/삭제 아이콘 노출 ----------
 function revealEntry(id) {
   revealedEntryId = id;
@@ -167,11 +184,11 @@ async function render() {
     }
 
     if (entry.text) {
-      const p = document.createElement("p");
-      p.className = "entry-text";
-      p.textContent = entry.text;
-      entryEl.appendChild(p);
-    }
+  const p = document.createElement("p");
+  p.className = "entry-text";
+  p.innerHTML = linkify(entry.text);
+  entryEl.appendChild(p);
+}
 
     const meta = document.createElement("div");
     meta.className = "entry-meta";
@@ -249,9 +266,9 @@ async function render() {
         } else {
           const textWrap = document.createElement("div");
           textWrap.style.flex = "1";
-          const rp = document.createElement("p");
+          cconst rp = document.createElement("p");
           rp.className = "reply-text";
-          rp.textContent = reply.text;
+          rp.innerHTML = linkify(reply.text);
           const metaRow = document.createElement("div");
           metaRow.className = "reply-meta";
           const rt = document.createElement("span");
