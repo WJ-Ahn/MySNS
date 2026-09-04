@@ -184,11 +184,11 @@ async function render() {
     }
 
     if (entry.text) {
-  const p = document.createElement("p");
-  p.className = "entry-text";
-  p.innerHTML = linkify(entry.text);
-  entryEl.appendChild(p);
-}
+      const p = document.createElement("p");
+      p.className = "entry-text";
+      p.innerHTML = linkify(entry.text);
+      entryEl.appendChild(p);
+    }
 
     const meta = document.createElement("div");
     meta.className = "entry-meta";
@@ -266,7 +266,7 @@ async function render() {
         } else {
           const textWrap = document.createElement("div");
           textWrap.style.flex = "1";
-          cconst rp = document.createElement("p");
+          const rp = document.createElement("p");
           rp.className = "reply-text";
           rp.innerHTML = linkify(reply.text);
           const metaRow = document.createElement("div");
