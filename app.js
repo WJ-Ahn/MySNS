@@ -7,7 +7,9 @@ let composerImagePreviewUrl = null;
 const imageUrlCache = {}; // driveFileId -> objectURL
 
 const feedEl = document.getElementById("feed");
-const headerDateEl = document.getElementById("header-date");
+const menuBtn = document.getElementById("menu-btn");
+const menuPanel = document.getElementById("menu-panel");
+const themeToggle = document.getElementById("theme-toggle");
 const composerTextEl = document.getElementById("composer-text");
 const composerPostBtn = document.getElementById("composer-post-btn");
 const composerImageBtn = document.getElementById("composer-image-btn");
@@ -24,6 +26,7 @@ const ICONS = {
   edit: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
   check: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
+  menu: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>`,
 };
 
 function iconBtn(name, className, title) {
@@ -36,11 +39,31 @@ function iconBtn(name, className, title) {
 
 composerImageBtn.innerHTML = ICONS.image;
 composerImageRemove.innerHTML = ICONS.close;
+composerPostBtn.innerHTML = ICONS.send;
+menuBtn.innerHTML = ICONS.menu;
 
-// 날짜+시간을 함께 표시 (기록이 여러 날에 걸쳐 쌓이므로 매번 날짜를 표시)
+// ---------- 메뉴 / 다크모드 ----------
+menuBtn.addEventListener("click", () => {
+  menuPanel.classList.toggle("open");
+});
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  themeToggle.setAttribute("aria-checked", theme === "dark" ? "true" : "false");
+  localStorage.setItem("pj-theme", theme);
+}
+
+themeToggle.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  applyTheme(current === "dark" ? "light" : "dark");
+});
+
+applyTheme(localStorage.getItem("pj-theme") === "dark" ? "dark" : "light");
+
+// 날짜+시간을 함께 표시 (연도 포함, 기록이 여러 해에 걸쳐 쌓일 수 있으므로)
 function formatDateTime(iso) {
   const d = new Date(iso);
-  const datePart = d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  const datePart = d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
   const timePart = d.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit", hour12: true });
   return `${datePart} · ${timePart}`;
 }
@@ -74,7 +97,6 @@ function initGis() {
 async function startApp() {
   document.getElementById("signin-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "flex";
-  headerDateEl.textContent = "개인 기록";
 
   journal = await DriveClient.loadJournal();
   if (!journal.entries) journal.entries = [];
@@ -322,7 +344,6 @@ composerPostBtn.addEventListener("click", async () => {
   if (!text && !composerImageFile) return;
 
   composerPostBtn.disabled = true;
-  composerPostBtn.textContent = "저장 중...";
 
   let imageFileId = null;
   if (composerImageFile) {
@@ -343,7 +364,6 @@ composerPostBtn.addEventListener("click", async () => {
   composerImageFile = null;
   composerImagePreview.style.display = "none";
   composerFileInput.value = "";
-  composerPostBtn.textContent = "남기기";
   updatePostButtonState();
 
   render();
