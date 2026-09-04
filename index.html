@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>개인 기록</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="signin-screen" class="screen">
+    <div class="signin-box">
+      <p class="signin-title">개인 기록</p>
+      <p class="signin-sub">Google Drive에 저장됩니다</p>
+      <div id="google-signin-btn"></div>
+    </div>
+  </div>
+
+  <div id="app-screen" class="screen" style="display:none;">
+    <header class="app-header">
+      <span id="header-date"></span>
+    </header>
+
+    <main id="feed" class="feed"></main>
+
+    <footer class="composer">
+      <div id="composer-image-preview" class="composer-image-preview" style="display:none;">
+        <img id="composer-image-tag" src="" alt="" />
+        <button id="composer-image-remove" class="image-remove-btn">✕</button>
+      </div>
+      <div class="composer-row">
+        <button id="composer-image-btn" class="icon-btn" title="사진 추가">🖼</button>
+        <input id="composer-file-input" type="file" accept="image/*" style="display:none;" />
+        <textarea id="composer-text" rows="1" placeholder="사진이나 스크랩, 생각 남기기"></textarea>
+        <button id="composer-post-btn" class="post-btn" disabled>남기기</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="config.js"></script>
+  <script src="drive.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
