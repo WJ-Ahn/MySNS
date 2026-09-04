@@ -324,6 +324,8 @@ async function render() {
 
       input.oninput = () => {
         sendBtn.classList.toggle("active", input.value.trim().length > 0);
+        input.style.height = "auto";
+        input.style.height = input.scrollHeight + "px";
       };
       const submit = async () => {
         const text = input.value.trim();
