@@ -1,5 +1,4 @@
 let journal = { entries: [] };
-let expanded = {};
 let editingEntryId = null;
 let editingReplyKey = null; // `${entryId}:${replyId}`
 let revealedEntryId = null;
@@ -29,9 +28,8 @@ const photoCancelBtn = document.getElementById("photo-cancel-btn");
 
 const ICONS = {
   image: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
-  reply: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
   send: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>`,
-  close: `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`,
+  close: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`,
   edit: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
   check: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
@@ -247,16 +245,6 @@ function buildEntryNode(entry) {
   time.textContent = formatDateTime(entry.time);
   meta.appendChild(time);
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.className = "reply-toggle-btn" + (entry.replies.length ? " has-replies" : "");
-  toggleBtn.innerHTML = ICONS.reply + `<span>${entry.replies.length > 0 ? entry.replies.length : "답글"}</span>`;
-  toggleBtn.onclick = (e) => {
-    e.stopPropagation();
-    expanded[entry.id] = !expanded[entry.id];
-    updateEntry(entry.id);
-  };
-  meta.appendChild(toggleBtn);
-
   const spacer = document.createElement("span");
   spacer.style.flex = "1";
   meta.appendChild(spacer);
@@ -285,18 +273,16 @@ function buildEntryNode(entry) {
 
   entryEl.appendChild(meta);
 
-  if (expanded[entry.id]) {
-    const thread = document.createElement("div");
-    thread.className = "thread";
+  const thread = document.createElement("div");
+  thread.className = "thread";
 
-    for (const reply of entry.replies) {
-      thread.appendChild(buildReplyRow(entry, reply));
-    }
-
-    thread.appendChild(buildReplyComposer(entry));
-
-    entryEl.appendChild(thread);
+  for (const reply of entry.replies) {
+    thread.appendChild(buildReplyRow(entry, reply));
   }
+
+  thread.appendChild(buildReplyComposer(entry));
+
+  entryEl.appendChild(thread);
 
   return entryEl;
 }
@@ -397,7 +383,6 @@ function buildReplyComposer(entry) {
     const text = input.value.trim();
     if (!text) return;
     entry.replies.push({ id: `r${Date.now()}`, text, time: new Date().toISOString() });
-    expanded[entry.id] = true;
     await persist();
     updateEntry(entry.id);
   };
