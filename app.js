@@ -96,22 +96,32 @@ function linkify(text) {
 
 // ---------- 터치 시에만 수정/삭제 아이콘 노출 ----------
 function revealEntry(id) {
-  revealedEntryId = id;
   clearTimeout(entryRevealTimer);
-  render();
+  if (revealedEntryId !== null && revealedEntryId !== id) {
+    const prevEl = feedEl.querySelector(`.entry[data-entry-id="${revealedEntryId}"]`);
+    if (prevEl) prevEl.classList.remove("revealed");
+  }
+  revealedEntryId = id;
+  const el = feedEl.querySelector(`.entry[data-entry-id="${id}"]`);
+  if (el) el.classList.add("revealed");
   entryRevealTimer = setTimeout(() => {
-    revealedEntryId = null;
-    render();
+    if (el) el.classList.remove("revealed");
+    if (revealedEntryId === id) revealedEntryId = null;
   }, 2000);
 }
 
 function revealReply(key) {
-  revealedReplyKey = key;
   clearTimeout(replyRevealTimer);
-  render();
+  if (revealedReplyKey !== null && revealedReplyKey !== key) {
+    const prevEl = feedEl.querySelector(`.reply-row[data-reply-key="${revealedReplyKey}"]`);
+    if (prevEl) prevEl.classList.remove("revealed");
+  }
+  revealedReplyKey = key;
+  const el = feedEl.querySelector(`.reply-row[data-reply-key="${key}"]`);
+  if (el) el.classList.add("revealed");
   replyRevealTimer = setTimeout(() => {
-    revealedReplyKey = null;
-    render();
+    if (el) el.classList.remove("revealed");
+    if (revealedReplyKey === key) revealedReplyKey = null;
   }, 2000);
 }
 
@@ -161,6 +171,7 @@ async function render() {
   for (const entry of journal.entries) {
     const entryEl = document.createElement("div");
     entryEl.className = "entry";
+    entryEl.dataset.entryId = entry.id;
 
     if (editingEntryId === entry.id) {
       entryEl.appendChild(buildEditBox(entry.text, async (newText) => {
@@ -244,6 +255,7 @@ async function render() {
         const replyKey = `${entry.id}:${reply.id}`;
         const row = document.createElement("div");
         row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
+        row.dataset.replyKey = replyKey;
         row.addEventListener("click", (e) => {
           e.stopPropagation();
           if (editingReplyKey === replyKey) return;
