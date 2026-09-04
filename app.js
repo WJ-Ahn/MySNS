@@ -94,7 +94,7 @@ function linkify(text) {
   });
 }
 
-// ---------- 터치 시에만 수정/삭제 아이콘 노출 ----------
+// ---------- 터치 시에만 수정/삭제 아이콘 노출 (DOM 클래스만 토글, 재렌더링 없음) ----------
 function revealEntry(id) {
   clearTimeout(entryRevealTimer);
   if (revealedEntryId !== null && revealedEntryId !== id) {
@@ -164,203 +164,250 @@ async function persist() {
   await DriveClient.saveJournal(journal);
 }
 
+// ---------- 항목 단위 갱신 헬퍼 ----------
+// 특정 글 하나만 다시 만들어 기존 자리에 교체 (피드 전체를 다시 그리지 않음)
+function updateEntry(entryId) {
+  const entry = journal.entries.find((e) => e.id === entryId);
+  const oldNode = feedEl.querySelector(`.entry[data-entry-id="${entryId}"]`);
+  if (!entry) {
+    if (oldNode) oldNode.remove();
+    return;
+  }
+  const newNode = buildEntryNode(entry);
+  if (oldNode) {
+    oldNode.replaceWith(newNode);
+  } else {
+    render();
+  }
+}
+
+// 특정 글 하나만 DOM에서 제거 (삭제)
+function removeEntryNode(entryId) {
+  const node = feedEl.querySelector(`.entry[data-entry-id="${entryId}"]`);
+  if (node) {
+    node.remove();
+  } else {
+    render();
+  }
+}
+
+// 새 글 하나만 만들어 맨 위에 추가 (작성)
+function prependEntryNode(entry) {
+  const node = buildEntryNode(entry);
+  feedEl.prepend(node);
+}
+
 // ---------- 렌더링 ----------
-async function render() {
+// 최초 로드 시에만 전체 피드를 그림
+function render() {
   feedEl.innerHTML = "";
-
   for (const entry of journal.entries) {
-    const entryEl = document.createElement("div");
-    entryEl.className = "entry";
-    entryEl.dataset.entryId = entry.id;
+    feedEl.appendChild(buildEntryNode(entry));
+  }
+}
 
-    if (editingEntryId === entry.id) {
-      entryEl.appendChild(buildEditBox(entry.text, async (newText) => {
-        entry.text = newText;
-        editingEntryId = null;
-        await persist();
-        render();
-      }, () => { editingEntryId = null; render(); }));
-      feedEl.appendChild(entryEl);
-      continue;
+// 글 하나의 DOM 노드를 만들어 반환 (화면에 붙이는 건 호출부 책임)
+function buildEntryNode(entry) {
+  const entryEl = document.createElement("div");
+  entryEl.className = "entry";
+  entryEl.dataset.entryId = entry.id;
+
+  if (editingEntryId === entry.id) {
+    entryEl.appendChild(buildEditBox(entry.text, async (newText) => {
+      entry.text = newText;
+      editingEntryId = null;
+      await persist();
+      updateEntry(entry.id);
+    }, () => { editingEntryId = null; updateEntry(entry.id); }));
+    return entryEl;
+  }
+
+  entryEl.classList.toggle("revealed", revealedEntryId === entry.id);
+  entryEl.addEventListener("click", () => revealEntry(entry.id));
+
+  if (entry.imageFileId) {
+    const img = document.createElement("img");
+    img.className = "entry-image";
+    entryEl.appendChild(img);
+    resolveImage(entry.imageFileId).then((url) => (img.src = url));
+  }
+
+  if (entry.text) {
+    const p = document.createElement("p");
+    p.className = "entry-text";
+    p.innerHTML = linkify(entry.text);
+    entryEl.appendChild(p);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "entry-meta";
+
+  const time = document.createElement("span");
+  time.className = "entry-time";
+  time.textContent = formatDateTime(entry.time);
+  meta.appendChild(time);
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "reply-toggle-btn" + (entry.replies.length ? " has-replies" : "");
+  toggleBtn.innerHTML = ICONS.reply + `<span>${entry.replies.length > 0 ? entry.replies.length : "답글"}</span>`;
+  toggleBtn.onclick = (e) => {
+    e.stopPropagation();
+    expanded[entry.id] = !expanded[entry.id];
+    updateEntry(entry.id);
+  };
+  meta.appendChild(toggleBtn);
+
+  const spacer = document.createElement("span");
+  spacer.style.flex = "1";
+  meta.appendChild(spacer);
+
+  const actions = document.createElement("div");
+  actions.className = "icon-actions";
+
+  const editBtn = iconBtn("edit", "meta-icon-btn", "수정");
+  editBtn.onclick = (e) => {
+    e.stopPropagation();
+    editingEntryId = entry.id;
+    updateEntry(entry.id);
+  };
+  actions.appendChild(editBtn);
+
+  const deleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
+  deleteBtn.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm("이 기록을 삭제할까요?")) return;
+    journal.entries = journal.entries.filter((e2) => e2.id !== entry.id);
+    await persist();
+    removeEntryNode(entry.id);
+  };
+  actions.appendChild(deleteBtn);
+  meta.appendChild(actions);
+
+  entryEl.appendChild(meta);
+
+  if (expanded[entry.id]) {
+    const thread = document.createElement("div");
+    thread.className = "thread";
+
+    for (const reply of entry.replies) {
+      thread.appendChild(buildReplyRow(entry, reply));
     }
 
-    entryEl.classList.toggle("revealed", revealedEntryId === entry.id);
-    entryEl.addEventListener("click", () => revealEntry(entry.id));
+    thread.appendChild(buildReplyComposer(entry));
 
-    if (entry.imageFileId) {
-      const img = document.createElement("img");
-      img.className = "entry-image";
-      entryEl.appendChild(img);
-      resolveImage(entry.imageFileId).then((url) => (img.src = url));
-    }
+    entryEl.appendChild(thread);
+  }
 
-    if (entry.text) {
-      const p = document.createElement("p");
-      p.className = "entry-text";
-      p.innerHTML = linkify(entry.text);
-      entryEl.appendChild(p);
-    }
+  return entryEl;
+}
 
-    const meta = document.createElement("div");
-    meta.className = "entry-meta";
+// 댓글 한 줄의 DOM 노드를 만들어 반환
+function buildReplyRow(entry, reply) {
+  const replyKey = `${entry.id}:${reply.id}`;
+  const row = document.createElement("div");
+  row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
+  row.dataset.replyKey = replyKey;
+  row.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (editingReplyKey === replyKey) return;
+    revealReply(replyKey);
+  });
 
-    const time = document.createElement("span");
-    time.className = "entry-time";
-    time.textContent = formatDateTime(entry.time);
-    meta.appendChild(time);
+  const line = document.createElement("div");
+  line.className = "reply-line";
+  row.appendChild(line);
 
-    const toggleBtn = document.createElement("button");
-    toggleBtn.className = "reply-toggle-btn" + (entry.replies.length ? " has-replies" : "");
-    toggleBtn.innerHTML = ICONS.reply + `<span>${entry.replies.length > 0 ? entry.replies.length : "답글"}</span>`;
-    toggleBtn.onclick = (e) => {
-      e.stopPropagation();
-      expanded[entry.id] = !expanded[entry.id];
-      render();
-    };
-    meta.appendChild(toggleBtn);
+  if (editingReplyKey === replyKey) {
+    const editWrap = document.createElement("div");
+    editWrap.style.flex = "1";
+    editWrap.appendChild(buildEditBox(reply.text, async (newText) => {
+      reply.text = newText;
+      editingReplyKey = null;
+      await persist();
+      updateEntry(entry.id);
+    }, () => { editingReplyKey = null; updateEntry(entry.id); }));
+    row.appendChild(editWrap);
+  } else {
+    const textWrap = document.createElement("div");
+    textWrap.style.flex = "1";
+    const rp = document.createElement("p");
+    rp.className = "reply-text";
+    rp.innerHTML = linkify(reply.text);
+    const metaRow = document.createElement("div");
+    metaRow.className = "reply-meta";
+    const rt = document.createElement("span");
+    rt.className = "reply-time";
+    rt.textContent = formatDateTime(reply.time);
+    metaRow.appendChild(rt);
 
-    const spacer = document.createElement("span");
-    spacer.style.flex = "1";
-    meta.appendChild(spacer);
+    const rSpacer = document.createElement("span");
+    rSpacer.style.flex = "1";
+    metaRow.appendChild(rSpacer);
 
     const actions = document.createElement("div");
     actions.className = "icon-actions";
 
-    const editBtn = iconBtn("edit", "meta-icon-btn", "수정");
-    editBtn.onclick = (e) => {
+    const rEditBtn = iconBtn("edit", "meta-icon-btn", "수정");
+    rEditBtn.onclick = (e) => {
       e.stopPropagation();
-      editingEntryId = entry.id;
-      render();
+      editingReplyKey = replyKey;
+      updateEntry(entry.id);
     };
-    actions.appendChild(editBtn);
+    actions.appendChild(rEditBtn);
 
-    const deleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
-    deleteBtn.onclick = async (e) => {
+    const rDeleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
+    rDeleteBtn.onclick = async (e) => {
       e.stopPropagation();
-      if (!confirm("이 기록을 삭제할까요?")) return;
-      journal.entries = journal.entries.filter((e2) => e2.id !== entry.id);
+      if (!confirm("이 답글을 삭제할까요?")) return;
+      entry.replies = entry.replies.filter((r) => r.id !== reply.id);
       await persist();
-      render();
+      updateEntry(entry.id);
     };
-    actions.appendChild(deleteBtn);
-    meta.appendChild(actions);
+    actions.appendChild(rDeleteBtn);
+    metaRow.appendChild(actions);
 
-    entryEl.appendChild(meta);
-
-    if (expanded[entry.id]) {
-      const thread = document.createElement("div");
-      thread.className = "thread";
-
-      for (const reply of entry.replies) {
-        const replyKey = `${entry.id}:${reply.id}`;
-        const row = document.createElement("div");
-        row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
-        row.dataset.replyKey = replyKey;
-        row.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (editingReplyKey === replyKey) return;
-          revealReply(replyKey);
-        });
-
-        const line = document.createElement("div");
-        line.className = "reply-line";
-        row.appendChild(line);
-
-        if (editingReplyKey === replyKey) {
-          const editWrap = document.createElement("div");
-          editWrap.style.flex = "1";
-          editWrap.appendChild(buildEditBox(reply.text, async (newText) => {
-            reply.text = newText;
-            editingReplyKey = null;
-            await persist();
-            render();
-          }, () => { editingReplyKey = null; render(); }));
-          row.appendChild(editWrap);
-        } else {
-          const textWrap = document.createElement("div");
-          textWrap.style.flex = "1";
-          const rp = document.createElement("p");
-          rp.className = "reply-text";
-          rp.innerHTML = linkify(reply.text);
-          const metaRow = document.createElement("div");
-          metaRow.className = "reply-meta";
-          const rt = document.createElement("span");
-          rt.className = "reply-time";
-          rt.textContent = formatDateTime(reply.time);
-          metaRow.appendChild(rt);
-
-          const rSpacer = document.createElement("span");
-          rSpacer.style.flex = "1";
-          metaRow.appendChild(rSpacer);
-
-          const actions = document.createElement("div");
-          actions.className = "icon-actions";
-
-          const rEditBtn = iconBtn("edit", "meta-icon-btn", "수정");
-          rEditBtn.onclick = (e) => {
-            e.stopPropagation();
-            editingReplyKey = replyKey;
-            render();
-          };
-          actions.appendChild(rEditBtn);
-
-          const rDeleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
-          rDeleteBtn.onclick = async (e) => {
-            e.stopPropagation();
-            if (!confirm("이 답글을 삭제할까요?")) return;
-            entry.replies = entry.replies.filter((r) => r.id !== reply.id);
-            await persist();
-            render();
-          };
-          actions.appendChild(rDeleteBtn);
-          metaRow.appendChild(actions);
-
-          textWrap.appendChild(rp);
-          textWrap.appendChild(metaRow);
-          row.appendChild(textWrap);
-        }
-
-        thread.appendChild(row);
-      }
-
-      const replyComposer = document.createElement("div");
-      replyComposer.className = "reply-composer";
-      const rline = document.createElement("div");
-      rline.className = "reply-line";
-      rline.style.alignSelf = "stretch";
-      const input = document.createElement("textarea");
-      input.rows = 1;
-      input.placeholder = "";
-      const sendBtn = document.createElement("button");
-      sendBtn.className = "reply-send-btn";
-      sendBtn.innerHTML = ICONS.send;
-
-      input.oninput = () => {
-        sendBtn.classList.toggle("active", input.value.trim().length > 0);
-        input.style.height = "auto";
-        input.style.height = input.scrollHeight + "px";
-      };
-      const submit = async () => {
-        const text = input.value.trim();
-        if (!text) return;
-        entry.replies.push({ id: `r${Date.now()}`, text, time: new Date().toISOString() });
-        expanded[entry.id] = true;
-        await persist();
-        render();
-      };
-      sendBtn.onclick = (e) => { e.stopPropagation(); submit(); };
-      replyComposer.addEventListener("click", (e) => e.stopPropagation());
-
-      replyComposer.appendChild(rline);
-      replyComposer.appendChild(input);
-      replyComposer.appendChild(sendBtn);
-      thread.appendChild(replyComposer);
-
-      entryEl.appendChild(thread);
-    }
-
-    feedEl.appendChild(entryEl);
+    textWrap.appendChild(rp);
+    textWrap.appendChild(metaRow);
+    row.appendChild(textWrap);
   }
+
+  return row;
+}
+
+// 댓글 입력창 DOM 노드를 만들어 반환
+function buildReplyComposer(entry) {
+  const replyComposer = document.createElement("div");
+  replyComposer.className = "reply-composer";
+  const rline = document.createElement("div");
+  rline.className = "reply-line";
+  rline.style.alignSelf = "stretch";
+  const input = document.createElement("textarea");
+  input.rows = 1;
+  input.placeholder = "";
+  const sendBtn = document.createElement("button");
+  sendBtn.className = "reply-send-btn";
+  sendBtn.innerHTML = ICONS.send;
+
+  input.oninput = () => {
+    sendBtn.classList.toggle("active", input.value.trim().length > 0);
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
+  };
+  const submit = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    entry.replies.push({ id: `r${Date.now()}`, text, time: new Date().toISOString() });
+    expanded[entry.id] = true;
+    await persist();
+    updateEntry(entry.id);
+  };
+  sendBtn.onclick = (e) => { e.stopPropagation(); submit(); };
+  replyComposer.addEventListener("click", (e) => e.stopPropagation());
+
+  replyComposer.appendChild(rline);
+  replyComposer.appendChild(input);
+  replyComposer.appendChild(sendBtn);
+  return replyComposer;
 }
 
 // 수정 모드 공용 UI: textarea + 저장/취소 아이콘 버튼
@@ -478,7 +525,7 @@ composerPostBtn.addEventListener("click", async () => {
   galleryInput.value = "";
   updatePostButtonState();
 
-  render();
+  prependEntryNode(newEntry);
 });
 
 // ---------- 시작 ----------
