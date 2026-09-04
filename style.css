@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 
 :root {
   --bg: #FAF9F5;
@@ -10,6 +10,7 @@
   --accent-soft: #E4EBE6;
   --line: #E7E1D4;
   --thread-line: #CFC7B4;
+  --font: 'Pretendard', sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -19,7 +20,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
   height: 100%;
 }
 
@@ -36,7 +37,7 @@ html, body {
 }
 .signin-box { text-align: center; }
 .signin-title {
-  font-family: 'Lora', serif;
+  font-family: var(--font);
   font-size: 22px;
   margin: 0 0 4px;
 }
@@ -50,7 +51,7 @@ html, body {
 .app-header {
   padding: 20px 20px 14px;
   border-bottom: 1px solid var(--line);
-  font-family: 'Lora', serif;
+  font-family: var(--font);
   font-size: 17px;
   font-weight: 500;
   position: sticky;
@@ -85,7 +86,7 @@ html, body {
 }
 
 .entry-text {
-  font-family: 'Lora', serif;
+  font-family: var(--font);
   font-size: 15.5px;
   line-height: 1.6;
   margin: 0;
@@ -110,9 +111,52 @@ html, body {
   cursor: pointer;
   color: var(--ink-faint);
   font-size: 12.5px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
 }
 .reply-toggle-btn.has-replies { color: var(--accent); }
+
+.meta-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-faint);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+.meta-icon-btn:hover { color: var(--ink-soft); }
+.meta-icon-btn.small { padding: 2px; }
+
+.edit-box {
+  padding: 4px 0 10px;
+}
+.edit-textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  padding: 8px 10px;
+}
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+.edit-save { color: var(--accent); }
+
+.reply-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+}
 
 .thread { margin-left: 8px; }
 .reply-row {
@@ -128,7 +172,7 @@ html, body {
   margin-left: 3px;
 }
 .reply-text {
-  font-family: 'Lora', serif;
+  font-family: var(--font);
   font-size: 14px;
   line-height: 1.55;
   margin: 0;
@@ -138,8 +182,6 @@ html, body {
 .reply-time {
   font-size: 11.5px;
   color: var(--ink-faint);
-  display: block;
-  margin-top: 4px;
 }
 
 .reply-composer {
@@ -148,17 +190,20 @@ html, body {
   align-items: center;
   padding-bottom: 14px;
 }
-.reply-composer input {
+.reply-composer textarea {
   flex: 1;
   border: none;
   outline: none;
+  resize: none;
   background: transparent;
-  font-family: 'Inter', sans-serif;
-  font-size: 13.5px;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.4;
   color: var(--ink);
   padding: 6px 0;
+  max-height: 100px;
 }
-.reply-composer input::placeholder { color: var(--ink-faint); }
+.reply-composer textarea::placeholder { color: var(--ink-faint); }
 .reply-send-btn {
   background: none;
   border: none;
@@ -230,8 +275,8 @@ html, body {
   outline: none;
   resize: none;
   background: transparent;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-family: var(--font);
+  font-size: 16px;
   color: var(--ink);
   padding: 8px 0;
   max-height: 80px;
@@ -248,7 +293,7 @@ html, body {
   cursor: pointer;
   opacity: 0.4;
   flex-shrink: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
 }
 .post-btn:not(:disabled) { opacity: 1; }
 
