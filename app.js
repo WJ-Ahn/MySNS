@@ -161,9 +161,12 @@ async function render() {
     spacer.style.flex = "1";
     meta.appendChild(spacer);
 
+    const actions = document.createElement("div");
+    actions.className = "icon-actions";
+
     const editBtn = iconBtn("edit", "meta-icon-btn", "수정");
     editBtn.onclick = () => { editingEntryId = entry.id; render(); };
-    meta.appendChild(editBtn);
+    actions.appendChild(editBtn);
 
     const deleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
     deleteBtn.onclick = async () => {
@@ -172,7 +175,8 @@ async function render() {
       await persist();
       render();
     };
-    meta.appendChild(deleteBtn);
+    actions.appendChild(deleteBtn);
+    meta.appendChild(actions);
 
     entryEl.appendChild(meta);
 
@@ -216,9 +220,12 @@ async function render() {
           rSpacer.style.flex = "1";
           metaRow.appendChild(rSpacer);
 
+          const actions = document.createElement("div");
+          actions.className = "icon-actions";
+
           const rEditBtn = iconBtn("edit", "meta-icon-btn small", "수정");
           rEditBtn.onclick = () => { editingReplyKey = replyKey; render(); };
-          metaRow.appendChild(rEditBtn);
+          actions.appendChild(rEditBtn);
 
           const rDeleteBtn = iconBtn("trash", "meta-icon-btn small", "삭제");
           rDeleteBtn.onclick = async () => {
@@ -227,7 +234,8 @@ async function render() {
             await persist();
             render();
           };
-          metaRow.appendChild(rDeleteBtn);
+          actions.appendChild(rDeleteBtn);
+          metaRow.appendChild(actions);
 
           textWrap.appendChild(rp);
           textWrap.appendChild(metaRow);
@@ -244,7 +252,7 @@ async function render() {
       rline.style.alignSelf = "stretch";
       const input = document.createElement("textarea");
       input.rows = 1;
-      input.placeholder = "스스로에게 답글 달기 (줄바꿈은 엔터)";
+      input.placeholder = "";
       const sendBtn = document.createElement("button");
       sendBtn.className = "reply-send-btn";
       sendBtn.innerHTML = ICONS.send;
