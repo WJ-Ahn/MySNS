@@ -11,6 +11,6 @@ const CONFIG = {
 
   // Drive에서 직접 만든 폴더의 ID를 붙여넣으세요.
   // 폴더를 열었을 때 주소창의 .../folders/ 뒤에 나오는 문자열입니다.
-  FOLDER_ID: "여기에_폴더_ID_붙여넣기",
+  FOLDER_ID: "1yOCFd6kutO5WExtJEqXmXA0hsOblkpKk",
   JOURNAL_FILENAME: "journal.json",
 };
