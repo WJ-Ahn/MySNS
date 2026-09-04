@@ -148,6 +148,7 @@ html, body {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
   animation: fadeIn 0.25s ease-out;
+  cursor: pointer;
 }
 
 .entry img.entry-image {
@@ -201,7 +202,6 @@ html, body {
   transition: color 0.15s ease;
 }
 .meta-icon-btn:hover { color: var(--ink-soft); }
-.meta-icon-btn.small { padding: 2px; }
 
 .edit-box {
   padding: 4px 0 10px;
@@ -263,6 +263,68 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.entry.revealed .icon-actions,
+.reply-row.revealed .icon-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 사진 선택 바텀시트 모달 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 20;
+  animation: modalFadeIn 0.15s ease-out;
+}
+.modal-sheet {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: modalSlideUp 0.2s ease-out;
+}
+.modal-option {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 4px;
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: center;
+}
+.modal-option:last-of-type { border-bottom: none; }
+.modal-cancel {
+  background: none;
+  border: none;
+  padding: 14px 4px 4px;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: center;
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .reply-composer {

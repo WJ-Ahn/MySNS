@@ -2,6 +2,10 @@ let journal = { entries: [] };
 let expanded = {};
 let editingEntryId = null;
 let editingReplyKey = null; // `${entryId}:${replyId}`
+let revealedEntryId = null;
+let revealedReplyKey = null;
+let entryRevealTimer = null;
+let replyRevealTimer = null;
 let composerImageFile = null;
 let composerImagePreviewUrl = null;
 const imageUrlCache = {}; // driveFileId -> objectURL
@@ -13,10 +17,15 @@ const themeToggle = document.getElementById("theme-toggle");
 const composerTextEl = document.getElementById("composer-text");
 const composerPostBtn = document.getElementById("composer-post-btn");
 const composerImageBtn = document.getElementById("composer-image-btn");
-const composerFileInput = document.getElementById("composer-file-input");
+const cameraInput = document.getElementById("composer-file-input-camera");
+const galleryInput = document.getElementById("composer-file-input-gallery");
 const composerImagePreview = document.getElementById("composer-image-preview");
 const composerImageTag = document.getElementById("composer-image-tag");
 const composerImageRemove = document.getElementById("composer-image-remove");
+const photoModalOverlay = document.getElementById("photo-modal-overlay");
+const photoCameraBtn = document.getElementById("photo-camera-btn");
+const photoGalleryBtn = document.getElementById("photo-gallery-btn");
+const photoCancelBtn = document.getElementById("photo-cancel-btn");
 
 const ICONS = {
   image: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
@@ -66,6 +75,27 @@ function formatDateTime(iso) {
   const datePart = d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
   const timePart = d.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit", hour12: true });
   return `${datePart} · ${timePart}`;
+}
+
+// ---------- 터치 시에만 수정/삭제 아이콘 노출 ----------
+function revealEntry(id) {
+  revealedEntryId = id;
+  clearTimeout(entryRevealTimer);
+  render();
+  entryRevealTimer = setTimeout(() => {
+    revealedEntryId = null;
+    render();
+  }, 2000);
+}
+
+function revealReply(key) {
+  revealedReplyKey = key;
+  clearTimeout(replyRevealTimer);
+  render();
+  replyRevealTimer = setTimeout(() => {
+    revealedReplyKey = null;
+    render();
+  }, 2000);
 }
 
 // ---------- 로그인 ----------
@@ -126,6 +156,9 @@ async function render() {
       continue;
     }
 
+    entryEl.classList.toggle("revealed", revealedEntryId === entry.id);
+    entryEl.addEventListener("click", () => revealEntry(entry.id));
+
     if (entry.imageFileId) {
       const img = document.createElement("img");
       img.className = "entry-image";
@@ -151,7 +184,8 @@ async function render() {
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "reply-toggle-btn" + (entry.replies.length ? " has-replies" : "");
     toggleBtn.innerHTML = ICONS.reply + `<span>${entry.replies.length > 0 ? entry.replies.length : "답글"}</span>`;
-    toggleBtn.onclick = () => {
+    toggleBtn.onclick = (e) => {
+      e.stopPropagation();
       expanded[entry.id] = !expanded[entry.id];
       render();
     };
@@ -165,13 +199,18 @@ async function render() {
     actions.className = "icon-actions";
 
     const editBtn = iconBtn("edit", "meta-icon-btn", "수정");
-    editBtn.onclick = () => { editingEntryId = entry.id; render(); };
+    editBtn.onclick = (e) => {
+      e.stopPropagation();
+      editingEntryId = entry.id;
+      render();
+    };
     actions.appendChild(editBtn);
 
     const deleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
-    deleteBtn.onclick = async () => {
+    deleteBtn.onclick = async (e) => {
+      e.stopPropagation();
       if (!confirm("이 기록을 삭제할까요?")) return;
-      journal.entries = journal.entries.filter((e) => e.id !== entry.id);
+      journal.entries = journal.entries.filter((e2) => e2.id !== entry.id);
       await persist();
       render();
     };
@@ -187,7 +226,11 @@ async function render() {
       for (const reply of entry.replies) {
         const replyKey = `${entry.id}:${reply.id}`;
         const row = document.createElement("div");
-        row.className = "reply-row";
+        row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          revealReply(replyKey);
+        });
 
         const line = document.createElement("div");
         line.className = "reply-line";
@@ -223,12 +266,17 @@ async function render() {
           const actions = document.createElement("div");
           actions.className = "icon-actions";
 
-          const rEditBtn = iconBtn("edit", "meta-icon-btn small", "수정");
-          rEditBtn.onclick = () => { editingReplyKey = replyKey; render(); };
+          const rEditBtn = iconBtn("edit", "meta-icon-btn", "수정");
+          rEditBtn.onclick = (e) => {
+            e.stopPropagation();
+            editingReplyKey = replyKey;
+            render();
+          };
           actions.appendChild(rEditBtn);
 
-          const rDeleteBtn = iconBtn("trash", "meta-icon-btn small", "삭제");
-          rDeleteBtn.onclick = async () => {
+          const rDeleteBtn = iconBtn("trash", "meta-icon-btn", "삭제");
+          rDeleteBtn.onclick = async (e) => {
+            e.stopPropagation();
             if (!confirm("이 답글을 삭제할까요?")) return;
             entry.replies = entry.replies.filter((r) => r.id !== reply.id);
             await persist();
@@ -268,7 +316,8 @@ async function render() {
         await persist();
         render();
       };
-      sendBtn.onclick = submit;
+      sendBtn.onclick = (e) => { e.stopPropagation(); submit(); };
+      replyComposer.addEventListener("click", (e) => e.stopPropagation());
 
       replyComposer.appendChild(rline);
       replyComposer.appendChild(input);
@@ -328,22 +377,44 @@ function updatePostButtonState() {
 
 composerTextEl.addEventListener("input", updatePostButtonState);
 
-composerImageBtn.addEventListener("click", () => composerFileInput.click());
+// 사진 선택 바텀시트 모달
+function openPhotoModal() {
+  photoModalOverlay.style.display = "flex";
+}
+function closePhotoModal() {
+  photoModalOverlay.style.display = "none";
+}
 
-composerFileInput.addEventListener("change", () => {
-  const file = composerFileInput.files[0];
+composerImageBtn.addEventListener("click", openPhotoModal);
+photoCancelBtn.addEventListener("click", closePhotoModal);
+photoModalOverlay.addEventListener("click", (e) => {
+  if (e.target === photoModalOverlay) closePhotoModal();
+});
+photoCameraBtn.addEventListener("click", () => {
+  closePhotoModal();
+  cameraInput.click();
+});
+photoGalleryBtn.addEventListener("click", () => {
+  closePhotoModal();
+  galleryInput.click();
+});
+
+function handleImageFile(file) {
   if (!file) return;
   composerImageFile = file;
   composerImagePreviewUrl = URL.createObjectURL(file);
   composerImageTag.src = composerImagePreviewUrl;
   composerImagePreview.style.display = "block";
   updatePostButtonState();
-});
+}
+cameraInput.addEventListener("change", () => handleImageFile(cameraInput.files[0]));
+galleryInput.addEventListener("change", () => handleImageFile(galleryInput.files[0]));
 
 composerImageRemove.addEventListener("click", () => {
   composerImageFile = null;
   composerImagePreview.style.display = "none";
-  composerFileInput.value = "";
+  cameraInput.value = "";
+  galleryInput.value = "";
   updatePostButtonState();
 });
 
@@ -371,7 +442,8 @@ composerPostBtn.addEventListener("click", async () => {
   composerTextEl.value = "";
   composerImageFile = null;
   composerImagePreview.style.display = "none";
-  composerFileInput.value = "";
+  cameraInput.value = "";
+  galleryInput.value = "";
   updatePostButtonState();
 
   render();
