@@ -2,7 +2,7 @@
 // OAuth 클라이언트 ID를 붙여넣으세요.
 // 예: "123456789-abcdefg.apps.googleusercontent.com"
 const CONFIG = {
-  CLIENT_ID: "여기에_클라이언트_ID_붙여넣기.apps.googleusercontent.com",
+  CLIENT_ID: "321289952793-7lipdspfso6letg45dgmdftlbdeqcnal.apps.googleusercontent.com",
 
   // drive: Drive 전체에 접근 가능한 권한.
   // 이미 존재하는 폴더를 직접 지정해서 쓰려면 이 범위가 필요함.
