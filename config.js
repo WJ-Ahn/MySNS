@@ -4,11 +4,13 @@
 const CONFIG = {
   CLIENT_ID: "여기에_클라이언트_ID_붙여넣기.apps.googleusercontent.com",
 
-  // drive.file: 이 앱이 만든 파일에만 접근하는 좁은 권한.
-  // Google 보안 심사 없이 테스트 사용자로 바로 사용 가능.
-  SCOPES: "https://www.googleapis.com/auth/drive.file",
+  // drive: Drive 전체에 접근 가능한 권한.
+  // 이미 존재하는 폴더를 직접 지정해서 쓰려면 이 범위가 필요함.
+  // (개인/테스트 계정으로만 쓰는 경우 별도 Google 심사 없이 사용 가능)
+  SCOPES: "https://www.googleapis.com/auth/drive",
 
-  // Drive에 만들 폴더/파일 이름 (원하면 바꿔도 됨)
-  FOLDER_NAME: "personal-journal-data",
+  // Drive에서 직접 만든 폴더의 ID를 붙여넣으세요.
+  // 폴더를 열었을 때 주소창의 .../folders/ 뒤에 나오는 문자열입니다.
+  FOLDER_ID: "여기에_폴더_ID_붙여넣기",
   JOURNAL_FILENAME: "journal.json",
 };

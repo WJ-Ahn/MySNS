@@ -13,34 +13,12 @@ const DriveClient = (() => {
     return { Authorization: `Bearer ${accessToken}`, ...extra };
   }
 
-  // 1) 앱 데이터 폴더가 있는지 찾고, 없으면 새로 생성
+  // 1) 사용자가 config.js에 지정한 폴더 ID를 그대로 사용
   async function ensureFolder() {
-    if (folderId) return folderId;
-
-    const q = encodeURIComponent(
-      `name='${CONFIG.FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    );
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
-      { headers: authHeaders() }
-    );
-    const data = await res.json();
-
-    if (data.files && data.files.length > 0) {
-      folderId = data.files[0].id;
-      return folderId;
+    if (!CONFIG.FOLDER_ID || CONFIG.FOLDER_ID.includes("여기에")) {
+      throw new Error("config.js에 FOLDER_ID를 먼저 설정해주세요.");
     }
-
-    const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        name: CONFIG.FOLDER_NAME,
-        mimeType: "application/vnd.google-apps.folder",
-      }),
-    });
-    const created = await createRes.json();
-    folderId = created.id;
+    folderId = CONFIG.FOLDER_ID;
     return folderId;
   }
 
