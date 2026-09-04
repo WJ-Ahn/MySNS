@@ -274,7 +274,7 @@ html, body {
   pointer-events: none;
   transition: opacity 0.15s ease;
 }
-.entry.revealed .icon-actions,
+.entry.revealed > .entry-meta .icon-actions,
 .reply-row.revealed .icon-actions {
   opacity: 1;
   pointer-events: auto;
