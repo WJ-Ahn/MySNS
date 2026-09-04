@@ -245,6 +245,7 @@ async function render() {
         const row = document.createElement("div");
         row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
         row.addEventListener("click", (e) => {
+          if (editingReplyKey === replyKey) return;
           e.stopPropagation();
           revealReply(replyKey);
         });
