@@ -10,6 +10,9 @@
   --accent-soft: #E4EBE6;
   --line: #E7E1D4;
   --thread-line: #CFC7B4;
+  --status-connected: #4F8A63;
+  --status-saving: #D9A441;
+  --status-disconnected: #C0524A;
   --font: 'Pretendard', sans-serif;
 }
 
@@ -23,6 +26,9 @@ html[data-theme="dark"] {
   --accent-soft: #253029;
   --line: #313033;
   --thread-line: #46454A;
+  --status-connected: #7FB69C;
+  --status-saving: #E0B85A;
+  --status-disconnected: #D97469;
 }
 
 * { box-sizing: border-box; }
@@ -65,7 +71,7 @@ html, body {
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   position: sticky;
   top: 0;
@@ -88,6 +94,36 @@ html, body {
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 .ghost-icon-btn:hover { color: var(--ink); background: var(--accent-soft); }
+
+/* 연결 상태 아이콘 */
+.conn-status {
+  cursor: default;
+}
+.conn-status[data-state="disconnected"] {
+  cursor: pointer;
+}
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  display: block;
+  transition: background-color 0.15s ease;
+}
+.conn-status[data-state="connected"] .status-dot {
+  background: var(--status-connected);
+}
+.conn-status[data-state="saving"] .status-dot {
+  background: var(--status-saving);
+  animation: statusPulse 1s ease-in-out infinite;
+}
+.conn-status[data-state="disconnected"] .status-dot {
+  background: var(--status-disconnected);
+}
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
 
 .menu-panel {
   max-height: 0;

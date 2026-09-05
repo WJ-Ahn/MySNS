@@ -12,10 +12,17 @@ const replyDrafts = {}; // entryId -> 입력 중인 댓글 임시 텍스트 (자
 const replyComposerCloseTimers = {}; // entryId -> 포커스 이탈 자동 닫힘 타이머 id
 const imageUrlCache = {}; // driveFileId -> objectURL
 
+// ---------- 연결 상태 ----------
+// "connected" | "saving" | "disconnected"
+let connState = "disconnected";
+let tokenExpiresAt = null; // 토큰 만료 예정 시각 (ms epoch)
+let connWatcherTimer = null;
+
 const feedEl = document.getElementById("feed");
 const menuBtn = document.getElementById("menu-btn");
 const menuPanel = document.getElementById("menu-panel");
 const themeToggle = document.getElementById("theme-toggle");
+const connStatusBtn = document.getElementById("conn-status-btn");
 const composerTextEl = document.getElementById("composer-text");
 const composerPostBtn = document.getElementById("composer-post-btn");
 const composerImageBtn = document.getElementById("composer-image-btn");
@@ -52,6 +59,35 @@ composerImageBtn.innerHTML = ICONS.image;
 composerImageRemove.innerHTML = ICONS.close;
 composerPostBtn.innerHTML = ICONS.send;
 menuBtn.innerHTML = ICONS.menu;
+
+// ---------- 연결 상태 표시 ----------
+const CONN_TITLES = {
+  connected: "Google Drive 연결됨",
+  saving: "저장 중...",
+  disconnected: "연결 끊김 - 눌러서 재연결",
+};
+
+function setConnStatus(state) {
+  connState = state;
+  connStatusBtn.dataset.state = state;
+  connStatusBtn.title = CONN_TITLES[state] || "";
+}
+
+// 토큰 만료 시각을 넘겼는지 주기적으로 확인 (실제 API 실패는 각 요청에서 즉시 반영됨)
+function startConnWatcher() {
+  clearInterval(connWatcherTimer);
+  connWatcherTimer = setInterval(() => {
+    if (tokenExpiresAt && Date.now() >= tokenExpiresAt && connState !== "saving") {
+      setConnStatus("disconnected");
+    }
+  }, 30000);
+}
+
+connStatusBtn.addEventListener("click", () => {
+  if (connState === "disconnected" && tokenClient) {
+    tokenClient.requestAccessToken();
+  }
+});
 
 // ---------- 메뉴 / 다크모드 ----------
 menuBtn.addEventListener("click", () => {
@@ -161,9 +197,14 @@ function initGis() {
     callback: async (response) => {
       if (response.error) {
         alert("로그인에 실패했습니다: " + response.error);
+        setConnStatus("disconnected");
         return;
       }
       DriveClient.setToken(response.access_token);
+      const expiresInSec = Number(response.expires_in) || 3600;
+      tokenExpiresAt = Date.now() + expiresInSec * 1000;
+      setConnStatus("connected");
+      startConnWatcher();
       await startApp();
     },
   });
@@ -181,13 +222,29 @@ async function startApp() {
   document.getElementById("signin-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "flex";
 
-  journal = await DriveClient.loadJournal();
-  if (!journal.entries) journal.entries = [];
+  try {
+    journal = await DriveClient.loadJournal();
+    if (!journal.entries) journal.entries = [];
+    setConnStatus("connected");
+  } catch (err) {
+    setConnStatus("disconnected");
+    alert("Drive에서 기록을 불러오지 못했습니다. 상단 좌측 아이콘을 눌러 재연결해주세요.");
+    journal = { entries: [] };
+  }
   render();
 }
 
+// Drive 저장을 시도하고, 성공/실패에 따라 연결 상태를 갱신.
+// 실패해도 예외를 다시 던지지 않음 (호출부는 항상 await만 하면 됨).
 async function persist() {
-  await DriveClient.saveJournal(journal);
+  setConnStatus("saving");
+  try {
+    await DriveClient.saveJournal(journal);
+    setConnStatus("connected");
+  } catch (err) {
+    setConnStatus("disconnected");
+    alert("저장에 실패했습니다. 방금 변경한 내용이 Drive에 반영되지 않았을 수 있습니다. 상단 좌측 아이콘을 눌러 재연결한 뒤 다시 시도해주세요.");
+  }
 }
 
 // ---------- 항목 단위 갱신 헬퍼 ----------
@@ -255,7 +312,11 @@ function buildEntryNode(entry) {
     const img = document.createElement("img");
     img.className = "entry-image";
     entryEl.appendChild(img);
-    resolveImage(entry.imageFileId).then((url) => (img.src = url));
+    resolveImage(entry.imageFileId)
+      .then((url) => (img.src = url))
+      .catch(() => {
+        setConnStatus("disconnected");
+      });
   }
 
   if (entry.text) {
@@ -560,7 +621,15 @@ composerPostBtn.addEventListener("click", async () => {
 
   let imageFileId = null;
   if (composerImageFile) {
-    imageFileId = await DriveClient.uploadImage(composerImageFile);
+    setConnStatus("saving");
+    try {
+      imageFileId = await DriveClient.uploadImage(composerImageFile);
+    } catch (err) {
+      setConnStatus("disconnected");
+      alert("이미지 업로드에 실패했습니다. 상단 좌측 아이콘을 눌러 재연결한 뒤 다시 시도해주세요.");
+      composerPostBtn.disabled = false;
+      return;
+    }
   }
 
   const newEntry = {
