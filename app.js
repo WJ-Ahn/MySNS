@@ -7,7 +7,9 @@ let entryRevealTimer = null;
 let replyRevealTimer = null;
 let composerImageFile = null;
 let composerImagePreviewUrl = null;
-let openReplyComposerEntryId = null;
+let openReplyComposerEntryId = null; // 댓글 입력창이 열려있는 entry id (한 번에 하나만 열림)
+const replyDrafts = {}; // entryId -> 입력 중인 댓글 임시 텍스트 (자동 닫힘 시에도 유지)
+const replyComposerCloseTimers = {}; // entryId -> 포커스 이탈 자동 닫힘 타이머 id
 const imageUrlCache = {}; // driveFileId -> objectURL
 
 const feedEl = document.getElementById("feed");
@@ -122,6 +124,30 @@ function revealReply(key) {
   replyRevealTimer = setTimeout(() => {
     if (el) el.classList.remove("revealed");
     if (revealedReplyKey === key) revealedReplyKey = null;
+  }, 2000);
+}
+
+// ---------- 댓글 입력창 자동 닫힘 (포커스 이탈 2초 후) ----------
+function clearReplyComposerAutoClose(entryId) {
+  if (replyComposerCloseTimers[entryId]) {
+    clearTimeout(replyComposerCloseTimers[entryId]);
+    delete replyComposerCloseTimers[entryId];
+  }
+}
+
+function scheduleReplyComposerAutoClose(entryId) {
+  clearReplyComposerAutoClose(entryId);
+  replyComposerCloseTimers[entryId] = setTimeout(() => {
+    delete replyComposerCloseTimers[entryId];
+    if (openReplyComposerEntryId !== entryId) return;
+    const textarea = feedEl.querySelector(
+      `.entry[data-entry-id="${entryId}"] .reply-composer textarea`
+    );
+    // 포커스가 없는 상태라면 닫는다 (입력해둔 텍스트는 replyDrafts에 남아있으므로 유지됨)
+    if (document.activeElement !== textarea) {
+      openReplyComposerEntryId = null;
+      updateEntry(entryId);
+    }
   }, 2000);
 }
 
@@ -257,8 +283,22 @@ function buildEntryNode(entry) {
   const commentBtn = iconBtn("comment", "meta-icon-btn", "댓글");
   commentBtn.onclick = (e) => {
     e.stopPropagation();
-    openReplyComposerEntryId = openReplyComposerEntryId === entry.id ? null : entry.id;
+    const previousId = openReplyComposerEntryId;
+    const willOpen = openReplyComposerEntryId !== entry.id;
+    openReplyComposerEntryId = willOpen ? entry.id : null;
+
+    // 다른 글에 열려있던 입력창은 자동으로 닫는다 (한 번에 하나만 열림)
+    if (previousId && previousId !== entry.id) {
+      clearReplyComposerAutoClose(previousId);
+      updateEntry(previousId);
+    }
     updateEntry(entry.id);
+
+    if (willOpen) {
+      scheduleReplyComposerAutoClose(entry.id);
+    } else {
+      clearReplyComposerAutoClose(entry.id);
+    }
   };
   actions.appendChild(commentBtn);
 
@@ -283,12 +323,7 @@ function buildEntryNode(entry) {
 
   entryEl.appendChild(meta);
 
-  const composerCollapse = document.createElement("div");
-  composerCollapse.className =
-    "reply-composer-collapse" + (openReplyComposerEntryId === entry.id ? " open" : "");
-  composerCollapse.appendChild(buildReplyComposer(entry));
-  entryEl.appendChild(composerCollapse);
-
+  // 답글 목록이 먼저, 그 아래에 댓글 입력창 (새 댓글은 항상 목록 맨 뒤에 추가되므로)
   const thread = document.createElement("div");
   thread.className = "thread";
 
@@ -297,6 +332,12 @@ function buildEntryNode(entry) {
   }
 
   entryEl.appendChild(thread);
+
+  const composerCollapse = document.createElement("div");
+  composerCollapse.className =
+    "reply-composer-collapse" + (openReplyComposerEntryId === entry.id ? " open" : "");
+  composerCollapse.appendChild(buildReplyComposer(entry));
+  entryEl.appendChild(composerCollapse);
 
   return entryEl;
 }
@@ -384,20 +425,35 @@ function buildReplyComposer(entry) {
   const input = document.createElement("textarea");
   input.rows = 1;
   input.placeholder = "";
+  input.value = replyDrafts[entry.id] || ""; // 자동 닫힘으로 사라졌던 임시 텍스트 복원
   const sendBtn = document.createElement("button");
   sendBtn.className = "reply-send-btn";
   sendBtn.innerHTML = ICONS.send;
+  sendBtn.classList.toggle("active", input.value.trim().length > 0);
 
   input.oninput = () => {
+    replyDrafts[entry.id] = input.value;
     sendBtn.classList.toggle("active", input.value.trim().length > 0);
     input.style.height = "auto";
     input.style.height = input.scrollHeight + "px";
   };
+
+  input.onfocus = () => {
+    clearReplyComposerAutoClose(entry.id);
+  };
+
+  input.onblur = () => {
+    scheduleReplyComposerAutoClose(entry.id);
+  };
+
   const submit = async () => {
     const text = input.value.trim();
     if (!text) return;
     entry.replies.push({ id: `r${Date.now()}`, text, time: new Date().toISOString() });
+    clearReplyComposerAutoClose(entry.id);
     await persist();
+    delete replyDrafts[entry.id];
+    openReplyComposerEntryId = null; // 등록 완료 시 입력창 자동 숨김
     updateEntry(entry.id);
   };
   sendBtn.onclick = (e) => { e.stopPropagation(); submit(); };
