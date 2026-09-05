@@ -7,6 +7,7 @@ let entryRevealTimer = null;
 let replyRevealTimer = null;
 let composerImageFile = null;
 let composerImagePreviewUrl = null;
+let openReplyComposerEntryId = null;
 const imageUrlCache = {}; // driveFileId -> objectURL
 
 const feedEl = document.getElementById("feed");
@@ -252,6 +253,14 @@ function buildEntryNode(entry) {
   const actions = document.createElement("div");
   actions.className = "icon-actions";
 
+  const commentBtn = iconBtn("comment", "meta-icon-btn", "댓글");
+  commentBtn.onclick = (e) => {
+    e.stopPropagation();
+    openReplyComposerEntryId = openReplyComposerEntryId === entry.id ? null : entry.id;
+    updateEntry(entry.id);
+  };
+  actions.appendChild(commentBtn);
+
   const editBtn = iconBtn("edit", "meta-icon-btn", "수정");
   editBtn.onclick = (e) => {
     e.stopPropagation();
@@ -273,14 +282,18 @@ function buildEntryNode(entry) {
 
   entryEl.appendChild(meta);
 
+  const composerCollapse = document.createElement("div");
+  composerCollapse.className =
+    "reply-composer-collapse" + (openReplyComposerEntryId === entry.id ? " open" : "");
+  composerCollapse.appendChild(buildReplyComposer(entry));
+  entryEl.appendChild(composerCollapse);
+
   const thread = document.createElement("div");
   thread.className = "thread";
 
   for (const reply of entry.replies) {
     thread.appendChild(buildReplyRow(entry, reply));
   }
-
-  thread.appendChild(buildReplyComposer(entry));
 
   entryEl.appendChild(thread);
 
