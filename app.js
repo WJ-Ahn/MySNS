@@ -487,6 +487,7 @@ function buildReplyComposer(entry) {
   input.rows = 1;
   input.placeholder = "";
   input.value = replyDrafts[entry.id] || ""; // 자동 닫힘으로 사라졌던 임시 텍스트 복원
+  requestAnimationFrame(() => autoResizeTextarea(input));
   const sendBtn = document.createElement("button");
   sendBtn.className = "reply-send-btn";
   sendBtn.innerHTML = ICONS.send;
@@ -535,6 +536,8 @@ function buildEditBox(initialText, onSave, onCancel) {
   textarea.className = "edit-textarea";
   textarea.value = initialText;
   textarea.rows = 2;
+  textarea.addEventListener("input", () => autoResizeTextarea(textarea));
+  requestAnimationFrame(() => autoResizeTextarea(textarea));
 
   const actions = document.createElement("div");
   actions.className = "edit-actions";
@@ -570,7 +573,15 @@ function updatePostButtonState() {
   composerPostBtn.disabled = !hasText && !composerImageFile;
 }
 
-composerTextEl.addEventListener("input", updatePostButtonState);
+function autoResizeTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+composerTextEl.addEventListener("input", () => {
+  updatePostButtonState();
+  autoResizeTextarea(composerTextEl);
+});
 
 // 사진 선택 바텀시트 모달
 function openPhotoModal() {
