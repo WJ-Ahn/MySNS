@@ -768,8 +768,9 @@ composerPostBtn.addEventListener("click", async () => {
   };
   journal.entries.unshift(newEntry);
   prependEntryNode(newEntry); // 저장 결과와 무관하게 화면에는 바로 반영
+  window.scrollTo({ top: 0, behavior: "smooth" });
 
-  composerTextEl.value = "";
+composerTextEl.value = "";
   composerImageFile = null;
   composerImagePreview.style.display = "none";
   cameraInput.value = "";
