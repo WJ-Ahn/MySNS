@@ -221,6 +221,40 @@ html, body {
 }
 .entry-time { font-size: 12.5px; color: var(--ink-soft); }
 
+/* 저장 실패 후 재시도 대기 중인 글/댓글 표시 */
+.entry.failed,
+.reply-row.failed {
+  opacity: 0.7;
+}
+.retry-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 2px 0 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--status-disconnected);
+}
+.retry-btn {
+  background: var(--status-disconnected);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+.retry-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .meta-icon-btn {
   background: none;
   border: none;
@@ -466,8 +500,7 @@ html, body {
   font-size: 16px;
   color: var(--ink);
   padding: 8px 0;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 80px;
 }
 .composer-row textarea::placeholder { color: var(--ink-faint); }
 .post-btn {
@@ -488,12 +521,4 @@ html, body {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-html, body {
-  scrollbar-width: none; /* Firefox */
-}
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
 }

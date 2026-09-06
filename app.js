@@ -12,6 +12,10 @@ const replyDrafts = {}; // entryId -> 입력 중인 댓글 임시 텍스트 (자
 const replyComposerCloseTimers = {}; // entryId -> 포커스 이탈 자동 닫힘 타이머 id
 const imageUrlCache = {}; // driveFileId -> objectURL
 
+// 저장이 실패한 채로 화면에 남아있는 글/댓글 (재시도 버튼을 보여주기 위한 표시용)
+const failedEntryIds = new Set(); // entry.id
+const failedReplyKeys = new Set(); // `${entryId}:${replyId}`
+
 // ---------- 연결 상태 ----------
 // "connected" | "saving" | "disconnected"
 let connState = "disconnected";
@@ -187,8 +191,11 @@ function scheduleReplyComposerAutoClose(entryId) {
   }, 2000);
 }
 
-// ---------- 로그인 ----------
+// ---------- 로그인 / 자동 재연결 ----------
 let tokenClient;
+// 자동(조용한) 재연결이 진행 중일 때, 로그인 콜백 결과를 이 resolver로 되돌려줌
+// (일반 로그인 흐름과 구분하기 위한 플래그 역할도 겸함)
+let pendingReconnectResolve = null;
 
 function initGis() {
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -196,6 +203,13 @@ function initGis() {
     scope: CONFIG.SCOPES,
     callback: async (response) => {
       if (response.error) {
+        if (pendingReconnectResolve) {
+          // 조용한 재연결 시도 중이었다면 알림 없이 실패로 처리 (호출부가 후속 처리)
+          const resolve = pendingReconnectResolve;
+          pendingReconnectResolve = null;
+          resolve(false);
+          return;
+        }
         alert("로그인에 실패했습니다: " + response.error);
         setConnStatus("disconnected");
         return;
@@ -205,6 +219,14 @@ function initGis() {
       tokenExpiresAt = Date.now() + expiresInSec * 1000;
       setConnStatus("connected");
       startConnWatcher();
+
+      if (pendingReconnectResolve) {
+        const resolve = pendingReconnectResolve;
+        pendingReconnectResolve = null;
+        resolve(true);
+        return;
+      }
+
       await startApp();
     },
   });
@@ -218,15 +240,52 @@ function initGis() {
   btnContainer.appendChild(btn);
 }
 
+// 사용자 몰래 토큰 재발급을 한 번 시도. 성공하면 true, 실패(또는 상호작용 필요)하면 false.
+function trySilentReconnect() {
+  return new Promise((resolve) => {
+    if (!tokenClient) {
+      resolve(false);
+      return;
+    }
+    pendingReconnectResolve = resolve;
+    try {
+      tokenClient.requestAccessToken({ prompt: "" });
+    } catch (err) {
+      pendingReconnectResolve = null;
+      resolve(false);
+    }
+  });
+}
+
+// Drive 요청 함수(fn)를 실행하고, 실패하면 조용한 재연결을 한 번 시도한 뒤 재요청.
+// 그것도 실패하면 최종 실패로 반환. (연결 상태 갱신은 호출부 책임)
+async function callDriveWithReconnect(fn) {
+  try {
+    return { ok: true, value: await fn() };
+  } catch (err) {
+    const reconnected = await trySilentReconnect();
+    if (reconnected) {
+      try {
+        return { ok: true, value: await fn() };
+      } catch (err2) {
+        return { ok: false, error: err2 };
+      }
+    }
+    return { ok: false, error: err };
+  }
+}
+
 async function startApp() {
   document.getElementById("signin-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "flex";
 
-  try {
-    journal = await DriveClient.loadJournal();
+  setConnStatus("saving");
+  const result = await callDriveWithReconnect(() => DriveClient.loadJournal());
+  if (result.ok) {
+    journal = result.value;
     if (!journal.entries) journal.entries = [];
     setConnStatus("connected");
-  } catch (err) {
+  } else {
     setConnStatus("disconnected");
     alert("Drive에서 기록을 불러오지 못했습니다. 상단 좌측 아이콘을 눌러 재연결해주세요.");
     journal = { entries: [] };
@@ -234,17 +293,18 @@ async function startApp() {
   render();
 }
 
-// Drive 저장을 시도하고, 성공/실패에 따라 연결 상태를 갱신.
-// 실패해도 예외를 다시 던지지 않음 (호출부는 항상 await만 하면 됨).
+// Drive 저장을 시도. 실패 시 조용한 재연결 후 한 번 더 시도.
+// 최종 실패 여부를 boolean으로 반환 (호출부가 화면에 "저장 안 됨" 표시를 남길지 판단할 수 있도록).
 async function persist() {
   setConnStatus("saving");
-  try {
-    await DriveClient.saveJournal(journal);
+  const result = await callDriveWithReconnect(() => DriveClient.saveJournal(journal));
+  if (result.ok) {
     setConnStatus("connected");
-  } catch (err) {
-    setConnStatus("disconnected");
-    alert("저장에 실패했습니다. 방금 변경한 내용이 Drive에 반영되지 않았을 수 있습니다. 상단 좌측 아이콘을 눌러 재연결한 뒤 다시 시도해주세요.");
+    return true;
   }
+  setConnStatus("disconnected");
+  alert("저장에 실패했습니다. 방금 변경한 내용이 Drive에 반영되지 않았을 수 있습니다. 상단 좌측 아이콘을 눌러 재연결한 뒤 다시 시도해주세요.");
+  return false;
 }
 
 // ---------- 항목 단위 갱신 헬퍼 ----------
@@ -306,6 +366,7 @@ function buildEntryNode(entry) {
   }
 
   entryEl.classList.toggle("revealed", revealedEntryId === entry.id);
+  entryEl.classList.toggle("failed", failedEntryIds.has(entry.id));
   entryEl.addEventListener("click", () => revealEntry(entry.id));
 
   if (entry.imageFileId) {
@@ -384,6 +445,17 @@ function buildEntryNode(entry) {
 
   entryEl.appendChild(meta);
 
+  // 저장이 실패한 채로 남아있는 글이면, 눈에 띄게 표시하고 재시도 버튼을 붙임
+  if (failedEntryIds.has(entry.id)) {
+    entryEl.appendChild(buildRetryBar(async (retryBtn) => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = "다시 시도 중...";
+      const success = await persist();
+      if (success) failedEntryIds.delete(entry.id);
+      updateEntry(entry.id);
+    }));
+  }
+
   // 답글 목록이 먼저, 그 아래에 댓글 입력창 (새 댓글은 항상 목록 맨 뒤에 추가되므로)
   const thread = document.createElement("div");
   thread.className = "thread";
@@ -403,11 +475,35 @@ function buildEntryNode(entry) {
   return entryEl;
 }
 
+// "저장되지 않음 / 다시 시도" 표시 바를 만들어 반환. onRetry(retryBtn)은 버튼 클릭 시 호출됨.
+function buildRetryBar(onRetry) {
+  const bar = document.createElement("div");
+  bar.className = "retry-bar";
+
+  const label = document.createElement("span");
+  label.textContent = "저장되지 않음";
+  bar.appendChild(label);
+
+  const retryBtn = document.createElement("button");
+  retryBtn.className = "retry-btn";
+  retryBtn.textContent = "다시 시도";
+  retryBtn.onclick = (e) => {
+    e.stopPropagation();
+    onRetry(retryBtn);
+  };
+  bar.appendChild(retryBtn);
+
+  return bar;
+}
+
 // 댓글 한 줄의 DOM 노드를 만들어 반환
 function buildReplyRow(entry, reply) {
   const replyKey = `${entry.id}:${reply.id}`;
   const row = document.createElement("div");
-  row.className = "reply-row" + (revealedReplyKey === replyKey ? " revealed" : "");
+  row.className =
+    "reply-row" +
+    (revealedReplyKey === replyKey ? " revealed" : "") +
+    (failedReplyKeys.has(replyKey) ? " failed" : "");
   row.dataset.replyKey = replyKey;
   row.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -470,6 +566,17 @@ function buildReplyRow(entry, reply) {
 
     textWrap.appendChild(rp);
     textWrap.appendChild(metaRow);
+
+    if (failedReplyKeys.has(replyKey)) {
+      textWrap.appendChild(buildRetryBar(async (retryBtn) => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = "다시 시도 중...";
+        const success = await persist();
+        if (success) failedReplyKeys.delete(replyKey);
+        updateEntry(entry.id);
+      }));
+    }
+
     row.appendChild(textWrap);
   }
 
@@ -487,7 +594,6 @@ function buildReplyComposer(entry) {
   input.rows = 1;
   input.placeholder = "";
   input.value = replyDrafts[entry.id] || ""; // 자동 닫힘으로 사라졌던 임시 텍스트 복원
-  requestAnimationFrame(() => autoResizeTextarea(input));
   const sendBtn = document.createElement("button");
   sendBtn.className = "reply-send-btn";
   sendBtn.innerHTML = ICONS.send;
@@ -511,11 +617,20 @@ function buildReplyComposer(entry) {
   const submit = async () => {
     const text = input.value.trim();
     if (!text) return;
-    entry.replies.push({ id: `r${Date.now()}`, text, time: new Date().toISOString() });
+    const newReply = { id: `r${Date.now()}`, text, time: new Date().toISOString() };
+    entry.replies.push(newReply);
     clearReplyComposerAutoClose(entry.id);
-    await persist();
     delete replyDrafts[entry.id];
-    openReplyComposerEntryId = null; // 등록 완료 시 입력창 자동 숨김
+    openReplyComposerEntryId = null; // 등록 시도 시 입력창은 우선 닫음
+    updateEntry(entry.id); // 저장 결과와 무관하게 화면에는 바로 반영
+
+    const success = await persist();
+    const replyKey = `${entry.id}:${newReply.id}`;
+    if (!success) {
+      failedReplyKeys.add(replyKey);
+    } else {
+      failedReplyKeys.delete(replyKey);
+    }
     updateEntry(entry.id);
   };
   sendBtn.onclick = (e) => { e.stopPropagation(); submit(); };
@@ -536,8 +651,6 @@ function buildEditBox(initialText, onSave, onCancel) {
   textarea.className = "edit-textarea";
   textarea.value = initialText;
   textarea.rows = 2;
-  textarea.addEventListener("input", () => autoResizeTextarea(textarea));
-  requestAnimationFrame(() => autoResizeTextarea(textarea));
 
   const actions = document.createElement("div");
   actions.className = "edit-actions";
@@ -573,15 +686,7 @@ function updatePostButtonState() {
   composerPostBtn.disabled = !hasText && !composerImageFile;
 }
 
-function autoResizeTextarea(el) {
-  el.style.height = "auto";
-  el.style.height = el.scrollHeight + "px";
-}
-
-composerTextEl.addEventListener("input", () => {
-  updatePostButtonState();
-  autoResizeTextarea(composerTextEl);
-});
+composerTextEl.addEventListener("input", updatePostButtonState);
 
 // 사진 선택 바텀시트 모달
 function openPhotoModal() {
@@ -633,14 +738,15 @@ composerPostBtn.addEventListener("click", async () => {
   let imageFileId = null;
   if (composerImageFile) {
     setConnStatus("saving");
-    try {
-      imageFileId = await DriveClient.uploadImage(composerImageFile);
-    } catch (err) {
+    const uploadResult = await callDriveWithReconnect(() => DriveClient.uploadImage(composerImageFile));
+    if (!uploadResult.ok) {
       setConnStatus("disconnected");
       alert("이미지 업로드에 실패했습니다. 상단 좌측 아이콘을 눌러 재연결한 뒤 다시 시도해주세요.");
       composerPostBtn.disabled = false;
       return;
     }
+    imageFileId = uploadResult.value;
+    setConnStatus("connected");
   }
 
   const newEntry = {
@@ -651,7 +757,7 @@ composerPostBtn.addEventListener("click", async () => {
     replies: [],
   };
   journal.entries.unshift(newEntry);
-  await persist();
+  prependEntryNode(newEntry); // 저장 결과와 무관하게 화면에는 바로 반영
 
   composerTextEl.value = "";
   composerImageFile = null;
@@ -660,7 +766,11 @@ composerPostBtn.addEventListener("click", async () => {
   galleryInput.value = "";
   updatePostButtonState();
 
-  prependEntryNode(newEntry);
+  const success = await persist();
+  if (!success) {
+    failedEntryIds.add(newEntry.id);
+    updateEntry(newEntry.id); // "저장되지 않음 / 다시 시도" 표시를 붙여서 다시 그림
+  }
 });
 
 // ---------- 시작 ----------
