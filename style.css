@@ -500,7 +500,8 @@ html, body {
   font-size: 16px;
   color: var(--ink);
   padding: 8px 0;
-  max-height: 80px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 .composer-row textarea::placeholder { color: var(--ink-faint); }
 .post-btn {
@@ -521,4 +522,12 @@ html, body {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+html, body {
+  scrollbar-width: none; /* Firefox */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
 }

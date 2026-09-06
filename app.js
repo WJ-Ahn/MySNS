@@ -651,6 +651,8 @@ function buildEditBox(initialText, onSave, onCancel) {
   textarea.className = "edit-textarea";
   textarea.value = initialText;
   textarea.rows = 2;
+  textarea.addEventListener("input", () => autoResizeTextarea(textarea));
+  requestAnimationFrame(() => autoResizeTextarea(textarea));
 
   const actions = document.createElement("div");
   actions.className = "edit-actions";
@@ -686,7 +688,15 @@ function updatePostButtonState() {
   composerPostBtn.disabled = !hasText && !composerImageFile;
 }
 
-composerTextEl.addEventListener("input", updatePostButtonState);
+function autoResizeTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+composerTextEl.addEventListener("input", () => {
+  updatePostButtonState();
+  autoResizeTextarea(composerTextEl);
+});
 
 // 사진 선택 바텀시트 모달
 function openPhotoModal() {
